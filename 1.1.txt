@@ -1,0 +1,59 @@
+mport pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+train_df = pd.read_csv('train.csv').dropna()
+test_df = pd.read_csv('test.csv').dropna()
+features = ['open', 'high', 'low', 'volume', 'momentum_index','beta_indicator', 'risk_premium', 'volatility_factor','technical_score', 'oscillator_value', 'liquidity_ratio','quant_index', 'trend_strength', 'market_sentiment', 'alpha_signal']
+X_train = train_df[features].values
+X_test = test_df[features].values
+y_train = train_df['close'].values
+y_test = test_df['close'].values
+X_mean = np.mean(X_train, axis=0)
+X_std = np.std(X_train, axis=0)
+X_std[X_std == 0] = 1 
+X_train = (X_train - X_mean) / X_std
+X_test = (X_test - X_mean) / X_std
+y_mean = np.mean(y_train)
+y_std = np.std(y_train)
+if y_std == 0: y_std = 1
+y_train = (y_train - y_mean) / y_std
+y_test = (y_test - y_mean) / y_std
+X_train = np.c_[np.ones((X_train.shape[0], 1)), X_train]
+X_test = np.c_[np.ones((X_test.shape[0], 1)), X_test]
+def get_accuracy(y_true, y_pred):
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - (ss_res / ss_tot)
+epochs = 2000
+learning_rate = 0.01  
+m = len(y_train)
+
+theta = np.zeros(X_train.shape[1])
+costs = []
+train_accuracies = []
+
+for epoch in range(epochs):
+    y_pred = X_train.dot(theta)
+    error = y_pred - y_train
+    cost = (1 / (2 * m)) * np.sum(error ** 2)
+    costs.append(cost)
+    acc = get_accuracy(y_train, y_pred)
+    train_accuracies.append(acc)
+    gradients = (1 / m) * X_train.T.dot(error)
+    theta = theta - (learning_rate * gradients)
+
+y_test_pred = X_test.dot(theta)
+test_acc = get_accuracy(y_test, y_test_pred)
+real_prices = (y_test_pred * y_std) + y_mean
+pd.Series(real_prices, name="Close").to_csv("predictions.csv", index=False)
+
+print("Final Training Accuracy (R2):", round(train_accuracies[-1], 4))
+print("Final Testing Accuracy (R2):", round(test_acc, 4))
+
+plt.figure(figsize=(8, 5))
+plt.plot(range(epochs), costs, color='red', linewidth=2)
+plt.title('Cost Function over Epochs')
+plt.xlabel('Epochs')
+plt.ylabel('Cost (MSE)')
+plt.grid(True)
+plt.show()
